@@ -66,33 +66,45 @@ def fetch_ncaa_scores():
     try:
         r = requests.get(url, timeout=5)
         r.raise_for_status()
-        print("Successfully fetched NCAA data")  # Debug print
-        return r.json()
+        data = r.json()
+        
+        # Debug: Print the structure of the first game
+        print("\nAPI Response Structure:")
+        if 'games' in data and len(data['games']) > 0:
+            print("First game data structure:")
+            print(data['games'][0])
+        return data
     except requests.RequestException as e:
         print(f"Error fetching NCAA data: {e}")
         return None
 
 def parse_ncaa_scores(data):
     """
-    Parse the NCAA football scores
+    Parse the NCAA football scores with updated field names
     """
     scores = []
     if not data or 'games' not in data:
-        print("No valid NCAA data found")  # Debug print
+        print("No valid NCAA data found")
         return scores
 
-    print(f"Found {len(data['games'])} games")  # Debug print
+    print(f"Found {len(data['games'])} games")
     for game in data['games']:
         try:
-            scores.append((
-                game['away_team'],
-                game['away_points'],
-                game['home_team'],
-                game['home_points'],
-                game['status']
-            ))
-        except KeyError as e:
+            # Debug print for this specific game
+            print("\nProcessing game:")
+            print(game)
+            
+            # Extract the team names and scores based on actual API structure
+            away_team = game.get('teams', {}).get('away', {}).get('name', 'Unknown')
+            home_team = game.get('teams', {}).get('home', {}).get('name', 'Unknown')
+            away_score = game.get('teams', {}).get('away', {}).get('score', 0)
+            home_score = game.get('teams', {}).get('home', {}).get('score', 0)
+            status = game.get('status', {}).get('type', 'Unknown')
+            
+            scores.append((away_team, away_score, home_team, home_score, status))
+        except Exception as e:
             print(f"Error parsing game data: {e}")
+            print(f"Problematic game data: {game}")
             continue
     
     return scores
