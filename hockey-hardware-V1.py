@@ -8,30 +8,11 @@ from PIL import Image, ImageDraw, ImageFont
 import RPi.GPIO as GPIO
 import spidev
 
-# Check if the required LCD library files exist
-LCD_LIBRARY = "LCD_1inch3.py"
-LCD_CONFIG = "lcdconfig.py"
-required_files = [LCD_LIBRARY, LCD_CONFIG]
+# Ensure we're in the correct directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(current_dir)
 
-for file in required_files:
-    if not os.path.exists(file):
-        print(f"Error: {file} not found in current directory.")
-        print("Please install the Waveshare LCD library:")
-        print("1. git clone https://github.com/waveshare/LCD_Module_RPI.git")
-        print("2. cd LCD_Module_RPI/RaspberryPi/python/")
-        print(f"3. cp {file} /path/to/your/project/")
-        sys.exit(1)
-
-# First, we need to modify LCD_1inch3.py to fix the import
-with open(LCD_LIBRARY, 'r') as file:
-    content = file.read()
-    if 'from . import lcdconfig' in content:
-        # Fix the relative import
-        content = content.replace('from . import lcdconfig', 'import lcdconfig')
-        with open(LCD_LIBRARY, 'w') as file:
-            file.write(content)
-
-# Now import the LCD libraries
+# Import LCD modules directly
 import lcdconfig
 import LCD_1inch3
 
@@ -69,7 +50,6 @@ def fetch_nhl_scores(date_str):
 def parse_nhl_scores(data):
     """
     Parse the JSON to extract a list of final (or in-progress) scores.
-    Return a list of tuples: [(away_team, away_score, home_team, home_score, status), ...]
     """
     scores = []
     if not data or 'dates' not in data:
@@ -81,38 +61,38 @@ def parse_nhl_scores(data):
             away_score = game['teams']['away']['score']
             home_team = game['teams']['home']['team']['name']
             home_score = game['teams']['home']['score']
-            status = game['status']['abstractGameState']  # e.g., "Final", "Live", etc.
+            status = game['status']['abstractGameState']
             scores.append((away_team, away_score, home_team, home_score, status))
     return scores
 
 def display_scores_on_lcd(scores):
     """
-    Use the Waveshare LCD Python driver to display hockey scores.
-    This function will:
-     1. Initialize the LCD.
-     2. Create a blank image using Pillow.
-     3. Draw the scores onto the image.
-     4. Send the image to the display.
+    Display hockey scores on the LCD screen
     """
     try:
-        # 1) Initialize the LCD
-        disp = LCD_1inch3.LCD_1inch3()
-        disp.Init()
-        disp.clear()
+        # Initialize display
+        display = LCD_1inch3.LCD_1inch3()
+        
+        # Print available methods for debugging
+        print("Available LCD methods:", dir(display))
+        
+        # Initialize the display
+        display.Init()
+        display.clear()
 
-        # 2) Create a blank image
-        width, height = 240, 240  # Adjust if your LCD is a different resolution
+        # Create a blank image
+        width, height = 240, 240
         image = Image.new("RGB", (width, height), "WHITE")
         draw = ImageDraw.Draw(image)
 
-        # 3) Try to load the default system font, fall back to a basic font if not found
+        # Try to load font
         try:
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
         except OSError:
             print("Warning: DejaVuSans font not found, using default font")
             font = ImageFont.load_default()
 
-        # We'll write each game in a new line
+        # Draw scores
         x, y = 10, 10
         line_spacing = 20
 
@@ -120,51 +100,39 @@ def display_scores_on_lcd(scores):
             draw.text((x, y), "No games found.", font=font, fill=(0, 0, 0))
         else:
             for (away_team, away_score, home_team, home_score, status) in scores:
-                line = f"{away_team} {away_score} @ {home_team} {home_score} ({status})"
+                line = f"{away_team} {away_score} @ {home_team} {home_score}"
                 draw.text((x, y), line, font=font, fill=(0, 0, 0))
                 y += line_spacing
-                if y > (height - line_spacing):  # If we run out of space
+                if y > (height - line_spacing):
                     break
 
-        # 4) Send image to display
-        disp.ShowImage(image)
+        # Show the image on the LCD
+        display.ShowImage(image)
         time.sleep(2)
 
     except Exception as e:
         print(f"Error displaying scores: {e}")
+        print(f"Error type: {type(e)}")
+        print(f"Error args: {e.args}")
         raise
 
 def main():
-    # Check SPI interface first
     if not check_spi():
         sys.exit(1)
-        
-    # Initialize the LCD module
-    try:
-        lcdconfig.module_init()
-    except Exception as e:
-        print(f"Error initializing LCD module: {e}")
-        sys.exit(1)
-
-    # Example: fetch today's date automatically or hard-code it.
-    from datetime import datetime
-    today_str = datetime.now().strftime("%Y-%m-%d")
 
     try:
-        # 1) Fetch data
+        # Get today's date
+        from datetime import datetime
+        today_str = datetime.now().strftime("%Y-%m-%d")
+
+        # Fetch and display scores
         data = fetch_nhl_scores(today_str)
-        # 2) Parse scores
         scores = parse_nhl_scores(data)
-        # 3) Display on LCD
         display_scores_on_lcd(scores)
+
     except Exception as e:
         print(f"Error in main execution: {e}")
     finally:
-        # Cleanup both GPIO and LCD module
-        try:
-            lcdconfig.module_exit()
-        except Exception as e:
-            print(f"Error during LCD module cleanup: {e}")
         GPIO.cleanup()
 
 if __name__ == "__main__":
