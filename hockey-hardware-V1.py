@@ -171,25 +171,36 @@ def display_scores_on_lcd(scores):
 
 def main():
     # Initialize GPIO first
-    GPIO.setwarnings(False)  # Disable warnings
+    GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
     
     if not check_spi():
         sys.exit(1)
 
+    print("Starting score display loop...")
     try:
-        # Fetch and display scores
-        print("Fetching NCAA scores...")  # Debug print
-        data = fetch_ncaa_scores()
-        print("Parsing NCAA scores...")  # Debug print
-        scores = parse_ncaa_scores(data)
-        print("Displaying scores...")  # Debug print
-        display_scores_on_lcd(scores)
-
-    except Exception as e:
-        print(f"Error in main execution: {e}")
+        while True:
+            try:
+                # Fetch and display scores
+                print("\nFetching NCAA scores...")
+                data = fetch_ncaa_scores()
+                scores = parse_ncaa_scores(data)
+                display_scores_on_lcd(scores)
+                
+                # Wait for 60 seconds before next update
+                print("Waiting 60 seconds before next update...")
+                time.sleep(60)
+                
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                print(f"Error in update loop: {e}")
+                time.sleep(10)  # Wait a bit before retrying on error
+                
+    except KeyboardInterrupt:
+        print("\nProgram interrupted by user")
     finally:
-        print("Cleaning up GPIO...")  # Debug print
+        print("Cleaning up GPIO...")
         GPIO.cleanup()
 
 if __name__ == "__main__":
