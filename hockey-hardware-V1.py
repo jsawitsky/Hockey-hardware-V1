@@ -3,6 +3,7 @@
 import sys
 import os
 import time
+import socket
 import requests
 from PIL import Image, ImageDraw, ImageFont
 import RPi.GPIO as GPIO
@@ -32,11 +33,39 @@ def check_spi():
         print("2. Navigate to 'Interface Options' -> 'SPI' -> Enable")
         return False
 
+def check_internet():
+    """
+    Test internet connectivity
+    """
+    try:
+        # Try to connect to a reliable server (Google's DNS)
+        test_socket = socket.create_connection(("8.8.8.8", 53), timeout=3)
+        test_socket.close()
+        return True
+    except OSError:
+        print("Warning: No internet connection detected")
+        return False
+
 def fetch_nhl_scores(date_str):
     """
     Fetch NHL scores for a given date in YYYY-MM-DD format 
     from the NHL Stats API.
     """
+    if not check_internet():
+        print("No internet connection - using test data")
+        # Return test data when offline
+        return {
+            "dates": [{
+                "games": [{
+                    "teams": {
+                        "away": {"team": {"name": "Test Away"}, "score": 3},
+                        "home": {"team": {"name": "Test Home"}, "score": 2}
+                    },
+                    "status": {"abstractGameState": "Testing"}
+                }]
+            }]
+        }
+
     url = f"https://statsapi.web.nhl.com/api/v1/schedule?startDate={date_str}&endDate={date_str}"
     try:
         r = requests.get(url, timeout=5)
@@ -117,6 +146,10 @@ def display_scores_on_lcd(scores):
         raise
 
 def main():
+    # Initialize GPIO first
+    GPIO.setwarnings(False)  # Disable warnings
+    GPIO.setmode(GPIO.BCM)
+    
     if not check_spi():
         sys.exit(1)
 
