@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 import RPi.GPIO as GPIO
 import spidev
 
-# Check if the required LCD libraries exist
+# Check if the required LCD library files exist
 LCD_LIBRARY = "LCD_1inch3.py"
 LCD_CONFIG = "lcdconfig.py"
 required_files = [LCD_LIBRARY, LCD_CONFIG]
@@ -22,9 +22,18 @@ for file in required_files:
         print(f"3. cp {file} /path/to/your/project/")
         sys.exit(1)
 
-# Import the LCD libraries from the local directory
-import LCD_1inch3
+# First, we need to modify LCD_1inch3.py to fix the import
+with open(LCD_LIBRARY, 'r') as file:
+    content = file.read()
+    if 'from . import lcdconfig' in content:
+        # Fix the relative import
+        content = content.replace('from . import lcdconfig', 'import lcdconfig')
+        with open(LCD_LIBRARY, 'w') as file:
+            file.write(content)
+
+# Now import the LCD libraries
 import lcdconfig
+import LCD_1inch3
 
 def check_spi():
     """
