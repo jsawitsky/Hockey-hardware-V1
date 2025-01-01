@@ -46,79 +46,85 @@ def check_internet():
         print("Warning: No internet connection detected")
         return False
 
-def fetch_nhl_scores(date_str):
+def fetch_ncaa_scores():
     """
-    Fetch NHL scores for a given date in YYYY-MM-DD format 
-    from the NHL Stats API.
+    Fetch NCAA football scores from the API
     """
     if not check_internet():
         print("No internet connection - using test data")
-        # Return test data when offline
         return {
-            "dates": [{
-                "games": [{
-                    "teams": {
-                        "away": {"team": {"name": "Test Away"}, "score": 3},
-                        "home": {"team": {"name": "Test Home"}, "score": 2}
-                    },
-                    "status": {"abstractGameState": "Testing"}
-                }]
+            "games": [{
+                "away_team": "Test Away",
+                "away_points": 21,
+                "home_team": "Test Home",
+                "home_points": 14,
+                "status": "FINAL"
             }]
         }
 
-    url = f"https://statsapi.web.nhl.com/api/v1/schedule?startDate={date_str}&endDate={date_str}"
+    url = "https://ncaa-api.henrygd.me/scoreboard/football/fbs"
     try:
         r = requests.get(url, timeout=5)
         r.raise_for_status()
-        data = r.json()
-        return data
+        print("Successfully fetched NCAA data")  # Debug print
+        return r.json()
     except requests.RequestException as e:
-        print(f"Error fetching data: {e}")
+        print(f"Error fetching NCAA data: {e}")
         return None
 
-def parse_nhl_scores(data):
+def parse_ncaa_scores(data):
     """
-    Parse the JSON to extract a list of final (or in-progress) scores.
+    Parse the NCAA football scores
     """
     scores = []
-    if not data or 'dates' not in data:
+    if not data or 'games' not in data:
+        print("No valid NCAA data found")  # Debug print
         return scores
 
-    for date_info in data['dates']:
-        for game in date_info['games']:
-            away_team = game['teams']['away']['team']['name']
-            away_score = game['teams']['away']['score']
-            home_team = game['teams']['home']['team']['name']
-            home_score = game['teams']['home']['score']
-            status = game['status']['abstractGameState']
-            scores.append((away_team, away_score, home_team, home_score, status))
+    print(f"Found {len(data['games'])} games")  # Debug print
+    for game in data['games']:
+        try:
+            scores.append((
+                game['away_team'],
+                game['away_points'],
+                game['home_team'],
+                game['home_points'],
+                game['status']
+            ))
+        except KeyError as e:
+            print(f"Error parsing game data: {e}")
+            continue
+    
     return scores
 
 def display_scores_on_lcd(scores):
     """
-    Display hockey scores on the LCD screen
+    Display scores on the LCD screen with enhanced error handling
     """
     try:
+        print("Initializing display...")  # Debug print
+        
         # Initialize display
         display = LCD_1inch3.LCD_1inch3()
         
-        # Print available methods for debugging
-        print("Available LCD methods:", dir(display))
-        
-        # Initialize the display
+        print("Calling display.Init()...")  # Debug print
         display.Init()
+        
+        print("Clearing display...")  # Debug print
         display.clear()
 
         # Create a blank image
         width, height = 240, 240
+        print(f"Creating image with dimensions {width}x{height}")  # Debug print
         image = Image.new("RGB", (width, height), "WHITE")
         draw = ImageDraw.Draw(image)
 
         # Try to load font
         try:
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+            print("Loaded DejaVuSans font")  # Debug print
         except OSError:
-            print("Warning: DejaVuSans font not found, using default font")
+            print("Using default font")  # Debug print
             font = ImageFont.load_default()
 
         # Draw scores
@@ -126,18 +132,24 @@ def display_scores_on_lcd(scores):
         line_spacing = 20
 
         if not scores:
+            print("No scores to display")  # Debug print
             draw.text((x, y), "No games found.", font=font, fill=(0, 0, 0))
         else:
+            print(f"Displaying {len(scores)} scores")  # Debug print
             for (away_team, away_score, home_team, home_score, status) in scores:
-                line = f"{away_team} {away_score} @ {home_team} {home_score}"
+                line = f"{away_team[:10]} {away_score}"  # Truncate team names to fit
+                draw.text((x, y), line, font=font, fill=(0, 0, 0))
+                y += line_spacing
+                line = f"{home_team[:10]} {home_score}"
                 draw.text((x, y), line, font=font, fill=(0, 0, 0))
                 y += line_spacing
                 if y > (height - line_spacing):
                     break
 
-        # Show the image on the LCD
+        print("Showing image on display...")  # Debug print
         display.ShowImage(image)
         time.sleep(2)
+        print("Display complete")  # Debug print
 
     except Exception as e:
         print(f"Error displaying scores: {e}")
@@ -154,18 +166,18 @@ def main():
         sys.exit(1)
 
     try:
-        # Get today's date
-        from datetime import datetime
-        today_str = datetime.now().strftime("%Y-%m-%d")
-
         # Fetch and display scores
-        data = fetch_nhl_scores(today_str)
-        scores = parse_nhl_scores(data)
+        print("Fetching NCAA scores...")  # Debug print
+        data = fetch_ncaa_scores()
+        print("Parsing NCAA scores...")  # Debug print
+        scores = parse_ncaa_scores(data)
+        print("Displaying scores...")  # Debug print
         display_scores_on_lcd(scores)
 
     except Exception as e:
         print(f"Error in main execution: {e}")
     finally:
+        print("Cleaning up GPIO...")  # Debug print
         GPIO.cleanup()
 
 if __name__ == "__main__":
