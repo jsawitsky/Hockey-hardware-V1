@@ -8,18 +8,23 @@ from PIL import Image, ImageDraw, ImageFont
 import RPi.GPIO as GPIO
 import spidev
 
-# Check if the LCD library exists in the current directory
+# Check if the required LCD libraries exist
 LCD_LIBRARY = "LCD_1inch3.py"
-if not os.path.exists(LCD_LIBRARY):
-    print(f"Error: {LCD_LIBRARY} not found in current directory.")
-    print("Please install the Waveshare LCD library:")
-    print("1. git clone https://github.com/waveshare/LCD_Module_RPI.git")
-    print("2. cd LCD_Module_RPI/RaspberryPi/python/")
-    print(f"3. cp {LCD_LIBRARY} /path/to/your/project/")
-    sys.exit(1)
+LCD_CONFIG = "lcdconfig.py"
+required_files = [LCD_LIBRARY, LCD_CONFIG]
 
-# Import the LCD library from the local directory
+for file in required_files:
+    if not os.path.exists(file):
+        print(f"Error: {file} not found in current directory.")
+        print("Please install the Waveshare LCD library:")
+        print("1. git clone https://github.com/waveshare/LCD_Module_RPI.git")
+        print("2. cd LCD_Module_RPI/RaspberryPi/python/")
+        print(f"3. cp {file} /path/to/your/project/")
+        sys.exit(1)
+
+# Import the LCD libraries from the local directory
 import LCD_1inch3
+import lcdconfig
 
 def check_spi():
     """
@@ -124,6 +129,13 @@ def main():
     # Check SPI interface first
     if not check_spi():
         sys.exit(1)
+        
+    # Initialize the LCD module
+    try:
+        lcdconfig.module_init()
+    except Exception as e:
+        print(f"Error initializing LCD module: {e}")
+        sys.exit(1)
 
     # Example: fetch today's date automatically or hard-code it.
     from datetime import datetime
@@ -139,7 +151,11 @@ def main():
     except Exception as e:
         print(f"Error in main execution: {e}")
     finally:
-        # Cleanup
+        # Cleanup both GPIO and LCD module
+        try:
+            lcdconfig.module_exit()
+        except Exception as e:
+            print(f"Error during LCD module cleanup: {e}")
         GPIO.cleanup()
 
 if __name__ == "__main__":
